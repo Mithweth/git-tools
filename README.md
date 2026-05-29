@@ -11,7 +11,7 @@ make
 ## Installation
 
 ```
-make install
+make install-bash
 ```
 
 Or

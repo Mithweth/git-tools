@@ -14,6 +14,9 @@ func GetDefaultBranch() (string, error) {
 	}
 	ref, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/HEAD"), false)
 	if err != nil {
+		if strings.Contains(err.Error(), "reference not found") {
+			return "", fmt.Errorf("%w: please try to run: git remote set-head origin --auto", err)
+		}
 		return "", err
 	}
 	branch := ref.Target().Short()
