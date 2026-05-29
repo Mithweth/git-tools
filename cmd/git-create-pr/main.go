@@ -14,14 +14,14 @@ func CreatePR() (string, error) {
 	var err error
 	baseBranch := os.Getenv("BASE_BRANCH")
 	if baseBranch == "" {
-		baseBranch, err = git.GetDefaultBranch()
+		_, baseBranch, err = git.GetDefaultBranch()
 		if err != nil {
 			return "", err
 		}
 	}
 	headBranch := os.Getenv("BRANCH_NAME")
 	if headBranch == "" {
-		headBranch, err = git.GetCurrentBranch()
+		_, headBranch, err = git.GetCurrentBranch()
 		if err != nil {
 			return "", err
 		}

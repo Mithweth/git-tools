@@ -27,6 +27,7 @@ require (
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	gitlab.com/gitlab-org/api/client-go v1.46.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
