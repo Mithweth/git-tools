@@ -30,8 +30,10 @@ clean:
 install: 
 	sudo $(INSTALLBIN) -d $(PREFIX)/bin/
 	sudo $(INSTALLBIN) -m 755 git-create-pr $(PREFIX)/bin/
-	echo "git config --global alias.create-pr \!$(PREFIX)/bin/git-create-pr" >> ~/.bashrc
 
 uninstall:
 	sudo $(REMOVE) -f $(PREFIX)/bin/git-create-pr
 	sed -i.bak "/alias.create-pr/d" ~/.bashrc
+
+install-bash: install
+	echo "git config --global alias.create-pr \!$(PREFIX)/bin/git-create-pr" >> ~/.bashrc
