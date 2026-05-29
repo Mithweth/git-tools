@@ -33,7 +33,11 @@ func CreatePR() (string, error) {
 			return "", err
 		}
 	}
-	provider, owner, repoName, err := git.GetRepositoryName()
+	repoUrl, err := git.GetRepositoryURL()
+	if err != nil {
+		return "", err
+	}
+	provider, owner, repoName, err := providers.ParseRepositoryURL(repoUrl)
 	if err != nil {
 		return "", err
 	}

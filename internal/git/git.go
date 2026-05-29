@@ -2,7 +2,6 @@ package git
 
 import (
 	"fmt"
-	"github.com/Mithweth/git-tools/internal/providers"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"strings"
@@ -45,50 +44,18 @@ func GetCurrentBranch() (string, error) {
 	return strings.TrimPrefix(branch, "origin/"), nil
 }
 
-func GetRepositoryName() (providers.GitProvider, string, string, error) {
+func GetRepositoryURL() (string, error) {
 	repo, err := git.PlainOpen(".")
 	if err != nil {
-		return "", "", "", err
+		return "", err
 	}
 
 	remote, err := repo.Remote("origin")
 	if err != nil {
-		return "", "", "", err
+		return "", err
 	}
 
-	url := strings.TrimSuffix(remote.Config().URLs[0], ".git")
-
-	var provider providers.GitProvider
-
-	switch {
-	case strings.HasPrefix(url, "git@github.com:"):
-		provider = providers.ProviderGitHub
-		url = strings.TrimPrefix(url, "git@github.com:")
-
-	case strings.HasPrefix(url, "https://github.com/"):
-		provider = providers.ProviderGitHub
-		url = strings.TrimPrefix(url, "https://github.com/")
-
-	case strings.HasPrefix(url, "git@gitlab.com:"):
-		provider = providers.ProviderGitLab
-		url = strings.TrimPrefix(url, "git@gitlab.com:")
-
-	case strings.HasPrefix(url, "https://gitlab.com/"):
-		provider = providers.ProviderGitLab
-		url = strings.TrimPrefix(url, "https://gitlab.com/")
-
-	default:
-		return "", "", "", fmt.Errorf("unsupported git remote url: %s", url)
-	}
-
-	parts := strings.Split(url, "/")
-	if len(parts) < 2 {
-		return "", "", "", fmt.Errorf("invalid git remote url: %s", url)
-	}
-	owner := strings.Join(parts[:len(parts)-1], "/")
-	repository := parts[len(parts)-1]
-
-	return provider, owner, repository, nil
+	return strings.TrimSuffix(remote.Config().URLs[0], ".git"), nil
 }
 
 func GetLastCommitMessage() (string, error) {
