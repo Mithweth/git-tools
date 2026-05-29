@@ -3,45 +3,66 @@ package git
 import (
 	"fmt"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"strings"
+	"time"
 )
 
-func GetDefaultBranch() (string, error) {
+func ResolveRevision(rev string) (string, error) {
 	repo, err := git.PlainOpen(".")
 	if err != nil {
 		return "", err
+	}
+
+	hash, err := repo.ResolveRevision(plumbing.Revision(rev))
+	if err != nil {
+		return "", err
+	}
+	if hash == nil {
+		return "", fmt.Errorf("wrong reference: %s", rev)
+	}
+
+	return hash.String(), nil
+}
+
+func GetDefaultBranch() (string, string, error) {
+	repo, err := git.PlainOpen(".")
+	if err != nil {
+		return "", "", err
 	}
 	ref, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/HEAD"), false)
 	if err != nil {
 		if strings.Contains(err.Error(), "reference not found") {
-			return "", fmt.Errorf("%w: please try to run: git remote set-head origin --auto", err)
+			return "", "", fmt.Errorf("%w: please try to run: git remote set-head origin --auto", err)
 		}
-		return "", err
+		return "", "", err
 	}
-	branch := ref.Target().Short()
-
-	return strings.TrimPrefix(branch, "origin/"), nil
+	def := ref.Target()
+	defRef, err := repo.Reference(def, true)
+	if err != nil {
+		return "", "", err
+	}
+	return defRef.Hash().String(), strings.TrimPrefix(def.Short(), "origin/"), nil
 }
 
-func GetCurrentBranch() (string, error) {
+func GetCurrentBranch() (string, string, error) {
 	repo, err := git.PlainOpen(".")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	head, err := repo.Head()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if !head.Name().IsBranch() {
-		return "", fmt.Errorf("detached HEAD at %s", head.Hash())
+		return "", "", fmt.Errorf("detached HEAD at %s", head.Hash())
 	}
 
-	branch := head.Name().Short()
-
-	return strings.TrimPrefix(branch, "origin/"), nil
+	return head.Hash().String(), strings.TrimPrefix(head.Name().Short(), "origin/"), nil
 }
 
 func GetRepositoryURL() (string, error) {
@@ -77,46 +98,126 @@ func GetLastCommitMessage() (string, error) {
 	return strings.SplitN(commit.Message, "\n", 2)[0], nil
 }
 
-// func CommitsSinceOriginHead() ([]plumbing.Hash, error) {
-// 	repo, err := git.PlainOpen(".")
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	ref, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/HEAD"), true)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func getCommitsBetween(from, until string) ([]*object.Commit, error) {
+	repo, err := git.PlainOpen(".")
+	if err != nil {
+		return nil, err
+	}
+	fromHash := plumbing.NewHash(from)
+	untilHash := plumbing.NewHash(until)
 
-// 	baseHash := ref.Hash()
+	commit, err := repo.CommitObject(untilHash)
+	if err != nil {
+		return nil, err
+	}
 
-// 	head, err := repo.Head()
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	var commits []*object.Commit
 
-// 	commit, err := repo.CommitObject(head.Hash())
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	for {
+		if commit.Hash == fromHash {
+			break
+		}
+		commits = append(commits, commit)
+		if commit.NumParents() == 0 {
+			return nil, fmt.Errorf("origin/HEAD not found in current branch history")
+		}
 
-// 	var commits []plumbing.Hash
+		commit, err = commit.Parent(0)
+		if err != nil {
+			return nil, err
+		}
+	}
 
-// 	for {
-// 		if commit.Hash == baseHash {
-// 			break
-// 		}
+	return commits, nil
+}
 
-// 		commits = append(commits, commit.Hash)
+func SquashFrom(from, message string) (int, string, error) {
+	repo, err := git.PlainOpen(".")
+	if err != nil {
+		return 0, "", err
+	}
 
-// 		if commit.NumParents() == 0 {
-// 			return nil, fmt.Errorf("base commit %s not found in current branch history", baseHash)
-// 		}
+	headRef, err := repo.Head()
+	if err != nil {
+		return 0, "", err
+	}
 
-// 		commit, err = commit.Parent(0)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 	}
+	if !headRef.Name().IsBranch() {
+		return 0, "", fmt.Errorf("detached HEAD at %s", headRef.Hash())
+	}
 
-// 	return commits, nil
-// }
+	commits, err := getCommitsBetween(from, headRef.Hash().String())
+	if err != nil {
+		return 0, "", err
+	}
+	if len(commits) < 2 {
+		return len(commits), "", fmt.Errorf("nothing to squash")
+	}
+	firstCommit := commits[len(commits)-1]
+
+	headCommit, err := repo.CommitObject(headRef.Hash())
+	if err != nil {
+		return 0, "", err
+	}
+
+	now := time.Now()
+
+	commitMessage := firstCommit.Message
+	if message != "" {
+		commitMessage = message
+	}
+
+	newCommit := &object.Commit{
+		Author:       firstCommit.Author,
+		Committer:    object.Signature{Name: firstCommit.Author.Name, Email: firstCommit.Author.Email, When: now},
+		Message:      commitMessage,
+		TreeHash:     headCommit.TreeHash,
+		ParentHashes: []plumbing.Hash{plumbing.NewHash(from)},
+	}
+
+	obj := repo.Storer.NewEncodedObject()
+	if err := newCommit.Encode(obj); err != nil {
+		return 0, "", err
+	}
+
+	newHash, err := repo.Storer.SetEncodedObject(obj)
+	if err != nil {
+		return 0, "", err
+	}
+
+	newRef := plumbing.NewHashReference(headRef.Name(), newHash)
+
+	if err := repo.Storer.SetReference(newRef); err != nil {
+		return 0, "", err
+	}
+
+	return len(commits), newHash.String(), nil
+}
+
+// TOFIX
+func Push(force bool) error {
+	repo, err := git.PlainOpen(".")
+	if err != nil {
+		return err
+	}
+
+	_, branch, err := GetCurrentBranch()
+	if err != nil {
+		return err
+	}
+
+	refSpec := config.RefSpec(
+		"refs/heads/" + branch + ":refs/heads/" + branch,
+	)
+
+	if force {
+		refSpec = config.RefSpec(
+			"+refs/heads/" + branch + ":refs/heads/" + branch,
+		)
+	}
+
+	return repo.Push(&git.PushOptions{
+		RemoteName: "origin",
+		RefSpecs:   []config.RefSpec{refSpec},
+	})
+}
