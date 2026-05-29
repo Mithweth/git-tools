@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/Mithweth/git-tools/internal/auth"
 	"github.com/Mithweth/git-tools/internal/git"
 	"github.com/spf13/pflag"
 	"os"
@@ -30,6 +31,21 @@ func Squash(from string, message string) (string, error) {
 	}
 }
 
+func Push(force bool) error {
+	repository, err := git.GetRepository()
+	if err != nil {
+		return err
+	}
+	authMethod, err := auth.GetAuth(repository)
+	if err != nil {
+		return err
+	}
+	if err := git.Push(authMethod, force); err != nil {
+		return err
+	}
+	return nil
+}
+
 func main() {
 	var (
 		commitMessage string
@@ -38,8 +54,8 @@ func main() {
 		force         bool
 	)
 	pflag.StringVarP(&commitMessage, "message", "m", "", "Commit message")
-	//pflag.BoolVarP(&push, "push", "p", false, "push after squash")
-	//pflag.BoolVarP(&force, "force", "f", false, "use force-push instead push")
+	pflag.BoolVarP(&push, "push", "p", false, "push after squash")
+	pflag.BoolVarP(&force, "force", "f", false, "use force-push instead push")
 	pflag.Parse()
 
 	if pflag.NArg() > 0 {
@@ -52,8 +68,8 @@ func main() {
 	}
 	fmt.Println(message)
 	if push {
-		if err := git.Push(force); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		if errPush := Push(force); errPush != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", errPush)
 			os.Exit(1)
 		}
 	}

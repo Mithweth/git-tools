@@ -6,6 +6,7 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"strings"
 	"time"
 )
@@ -65,20 +66,6 @@ func GetCurrentBranch() (string, string, error) {
 	return head.Hash().String(), strings.TrimPrefix(head.Name().Short(), "origin/"), nil
 }
 
-func GetRepositoryURL() (string, error) {
-	repo, err := git.PlainOpen(".")
-	if err != nil {
-		return "", err
-	}
-
-	remote, err := repo.Remote("origin")
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSuffix(remote.Config().URLs[0], ".git"), nil
-}
-
 func GetLastCommitMessage() (string, error) {
 	repo, err := git.PlainOpen(".")
 	if err != nil {
@@ -114,6 +101,7 @@ func getCommitsBetween(from, until string) ([]*object.Commit, error) {
 	var commits []*object.Commit
 
 	for {
+		//nolint:staticcheck
 		if commit.Hash == fromHash {
 			break
 		}
@@ -194,8 +182,7 @@ func SquashFrom(from, message string) (int, string, error) {
 	return len(commits), newHash.String(), nil
 }
 
-// TOFIX
-func Push(force bool) error {
+func Push(auth transport.AuthMethod, force bool) error {
 	repo, err := git.PlainOpen(".")
 	if err != nil {
 		return err
@@ -219,5 +206,6 @@ func Push(force bool) error {
 	return repo.Push(&git.PushOptions{
 		RemoteName: "origin",
 		RefSpecs:   []config.RefSpec{refSpec},
+		Auth:       auth,
 	})
 }

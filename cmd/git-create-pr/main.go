@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/Mithweth/git-tools/internal/domain"
 	"github.com/Mithweth/git-tools/internal/git"
 	"github.com/Mithweth/git-tools/internal/providers"
 	"os"
@@ -33,30 +34,26 @@ func CreatePR() (string, error) {
 			return "", err
 		}
 	}
-	repoUrl, err := git.GetRepositoryURL()
-	if err != nil {
-		return "", err
-	}
-	provider, owner, repoName, err := providers.ParseRepositoryURL(repoUrl)
+	repository, err := git.GetRepository()
 	if err != nil {
 		return "", err
 	}
 	var token string
-	switch provider {
-	case providers.ProviderGitHub:
+	switch repository.Provider {
+	case domain.ProviderGitHub:
 		token = os.Getenv("GITHUB_TOKEN")
-	case providers.ProviderGitLab:
+	case domain.ProviderGitLab:
 		token = os.Getenv("GITLAB_TOKEN")
 	}
 	if token == "" {
 		return "", fmt.Errorf("token is not set")
 	}
-	repo, err := providers.NewRepository(ctx, provider, token, owner, repoName)
+	conn, err := providers.New(ctx, repository, token)
 	if err != nil {
 		return "", err
 	}
 
-	url, err := repo.CreatePullRequest(ctx, message, headBranch, baseBranch)
+	url, err := conn.CreatePullRequest(ctx, message, headBranch, baseBranch)
 	if err != nil {
 		return "", err
 	}
