@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"github.com/Mithweth/git-tools/internal/domain"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"strings"
@@ -44,34 +45,50 @@ func GetCurrentBranch() (string, error) {
 	return strings.TrimPrefix(branch, "origin/"), nil
 }
 
-func GetRepositoryName() (string, string, error) {
+func GetRepositoryName() (domain.GitProvider, string, string, error) {
 	repo, err := git.PlainOpen(".")
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	remote, err := repo.Remote("origin")
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
-	url := remote.Config().URLs[0]
-	url = strings.TrimSuffix(url, ".git")
+	url := strings.TrimSuffix(remote.Config().URLs[0], ".git")
 
-	if strings.HasPrefix(url, "git@github.com:") {
+	var provider domain.GitProvider
+
+	switch {
+	case strings.HasPrefix(url, "git@github.com:"):
+		provider = domain.ProviderGitHub
 		url = strings.TrimPrefix(url, "git@github.com:")
-	} else if strings.HasPrefix(url, "https://github.com/") {
+
+	case strings.HasPrefix(url, "https://github.com/"):
+		provider = domain.ProviderGitHub
 		url = strings.TrimPrefix(url, "https://github.com/")
-	} else {
-		return "", "", fmt.Errorf("unsupported github url: %s", url)
+
+	case strings.HasPrefix(url, "git@gitlab.com:"):
+		provider = domain.ProviderGitLab
+		url = strings.TrimPrefix(url, "git@gitlab.com:")
+
+	case strings.HasPrefix(url, "https://gitlab.com/"):
+		provider = domain.ProviderGitLab
+		url = strings.TrimPrefix(url, "https://gitlab.com/")
+
+	default:
+		return "", "", "", fmt.Errorf("unsupported git remote url: %s", url)
 	}
 
 	parts := strings.Split(url, "/")
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid github url: %s", url)
+	if len(parts) < 2 {
+		return "", "", "", fmt.Errorf("invalid git remote url: %s", url)
 	}
+	owner := strings.Join(parts[:len(parts)-1], "/")
+	repository := parts[len(parts)-1]
 
-	return parts[0], parts[1], nil
+	return provider, owner, repository, nil
 }
 
 func GetLastCommitMessage() (string, error) {
@@ -93,46 +110,46 @@ func GetLastCommitMessage() (string, error) {
 	return strings.SplitN(commit.Message, "\n", 2)[0], nil
 }
 
-func CommitsSinceOriginHead(repo *git.Repository) ([]plumbing.Hash, error) {
-	repo, err := git.PlainOpen(".")
-	if err != nil {
-		return nil, err
-	}
-	ref, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/HEAD"), true)
-	if err != nil {
-		return nil, err
-	}
+// func CommitsSinceOriginHead() ([]plumbing.Hash, error) {
+// 	repo, err := git.PlainOpen(".")
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	ref, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/HEAD"), true)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	baseHash := ref.Hash()
+// 	baseHash := ref.Hash()
 
-	head, err := repo.Head()
-	if err != nil {
-		return nil, err
-	}
+// 	head, err := repo.Head()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	commit, err := repo.CommitObject(head.Hash())
-	if err != nil {
-		return nil, err
-	}
+// 	commit, err := repo.CommitObject(head.Hash())
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	var commits []plumbing.Hash
+// 	var commits []plumbing.Hash
 
-	for {
-		if commit.Hash == baseHash {
-			break
-		}
+// 	for {
+// 		if commit.Hash == baseHash {
+// 			break
+// 		}
 
-		commits = append(commits, commit.Hash)
+// 		commits = append(commits, commit.Hash)
 
-		if commit.NumParents() == 0 {
-			return nil, fmt.Errorf("base commit %s not found in current branch history", baseHash)
-		}
+// 		if commit.NumParents() == 0 {
+// 			return nil, fmt.Errorf("base commit %s not found in current branch history", baseHash)
+// 		}
 
-		commit, err = commit.Parent(0)
-		if err != nil {
-			return nil, err
-		}
-	}
+// 		commit, err = commit.Parent(0)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 	}
 
-	return commits, nil
-}
+// 	return commits, nil
+// }
