@@ -2,7 +2,7 @@ package git
 
 import (
 	"fmt"
-	"github.com/Mithweth/git-tools/internal/domain"
+	"github.com/Mithweth/git-tools/internal/providers"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"strings"
@@ -45,7 +45,7 @@ func GetCurrentBranch() (string, error) {
 	return strings.TrimPrefix(branch, "origin/"), nil
 }
 
-func GetRepositoryName() (domain.GitProvider, string, string, error) {
+func GetRepositoryName() (providers.GitProvider, string, string, error) {
 	repo, err := git.PlainOpen(".")
 	if err != nil {
 		return "", "", "", err
@@ -58,23 +58,23 @@ func GetRepositoryName() (domain.GitProvider, string, string, error) {
 
 	url := strings.TrimSuffix(remote.Config().URLs[0], ".git")
 
-	var provider domain.GitProvider
+	var provider providers.GitProvider
 
 	switch {
 	case strings.HasPrefix(url, "git@github.com:"):
-		provider = domain.ProviderGitHub
+		provider = providers.ProviderGitHub
 		url = strings.TrimPrefix(url, "git@github.com:")
 
 	case strings.HasPrefix(url, "https://github.com/"):
-		provider = domain.ProviderGitHub
+		provider = providers.ProviderGitHub
 		url = strings.TrimPrefix(url, "https://github.com/")
 
 	case strings.HasPrefix(url, "git@gitlab.com:"):
-		provider = domain.ProviderGitLab
+		provider = providers.ProviderGitLab
 		url = strings.TrimPrefix(url, "git@gitlab.com:")
 
 	case strings.HasPrefix(url, "https://gitlab.com/"):
-		provider = domain.ProviderGitLab
+		provider = providers.ProviderGitLab
 		url = strings.TrimPrefix(url, "https://gitlab.com/")
 
 	default:

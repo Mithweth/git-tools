@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/Mithweth/git-tools/internal/domain"
 	"github.com/Mithweth/git-tools/internal/git"
 	"github.com/Mithweth/git-tools/internal/providers"
 	"os"
@@ -40,9 +39,9 @@ func CreatePR() (string, error) {
 	}
 	var token string
 	switch provider {
-	case domain.ProviderGitHub:
+	case providers.ProviderGitHub:
 		token = os.Getenv("GITHUB_TOKEN")
-	case domain.ProviderGitLab:
+	case providers.ProviderGitLab:
 		token = os.Getenv("GITLAB_TOKEN")
 	}
 	if token == "" {
