@@ -1,6 +1,7 @@
 package git
 
 import (
+	"errors"
 	"fmt"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
@@ -136,7 +137,7 @@ func SquashFrom(from, message string) (int, string, error) {
 
 	commits, err := getCommitsBetween(from, headRef.Hash().String())
 	if err != nil {
-		return 0, "", err
+		return 0, "", fmt.Errorf("git squash failed: %w", err)
 	}
 	if len(commits) < 2 {
 		return len(commits), "", fmt.Errorf("nothing to squash")
@@ -165,18 +166,18 @@ func SquashFrom(from, message string) (int, string, error) {
 
 	obj := repo.Storer.NewEncodedObject()
 	if err := newCommit.Encode(obj); err != nil {
-		return 0, "", err
+		return 0, "", fmt.Errorf("git squash failed: %w", err)
 	}
 
 	newHash, err := repo.Storer.SetEncodedObject(obj)
 	if err != nil {
-		return 0, "", err
+		return 0, "", fmt.Errorf("git squash failed: %w", err)
 	}
 
 	newRef := plumbing.NewHashReference(headRef.Name(), newHash)
 
 	if err := repo.Storer.SetReference(newRef); err != nil {
-		return 0, "", err
+		return 0, "", fmt.Errorf("git squash failed: %w", err)
 	}
 
 	return len(commits), newHash.String(), nil
@@ -203,9 +204,19 @@ func Push(auth transport.AuthMethod, force bool) error {
 		)
 	}
 
-	return repo.Push(&git.PushOptions{
+	err = repo.Push(&git.PushOptions{
 		RemoteName: "origin",
 		RefSpecs:   []config.RefSpec{refSpec},
 		Auth:       auth,
 	})
+
+	if errors.Is(err, git.NoErrAlreadyUpToDate) {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("git push failed: %w", err)
+	}
+
+	return nil
 }
